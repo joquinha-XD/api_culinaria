@@ -2,130 +2,171 @@ import comentarioModel from "../models/comentarioModel.js";
 import usuarioModel from "../models/usuarioModel.js";
 import receitaModel from "../models/receitaModels.js";
 
-export const cadastrarComentario = async (req, res) => {
-  const { usuarioId, receitaId, texto, avaliacao } = req.body;
+export const cadastrarComentario = async (request, response) => {
+  const { usuarioId, receitaId, texto, avaliacao } = request.body;
 
   if (!usuarioId) {
-    res.status(400).json({ mensagem: "Campo usuarioId não pode ser nulo" });
+    response.status(400).json({ mensagem: "Campo usuarioId não pode ser nulo" });
     return;
   }
 
   if (!receitaId) {
-    res.status(400).json({ mensagem: "Campo receitaId não pode ser nulo" });
+    response.status(400).json({ mensagem: "Campo receitaId não pode ser nulo" });
     return;
   }
 
   if (!texto) {
-    res.status(400).json({ mensagem: "Campo texto não pode ser nulo" });
+    response.status(400).json({ mensagem: "Campo texto não pode ser nulo" });
     return;
   }
 
   if (!avaliacao) {
-    res.status(400).json({ mensagem: "Campo avaliacao não pode ser nulo" });
+    response.status(400).json({ mensagem: "Campo avaliacao não pode ser nulo" });
     return;
   }
 
   if (avaliacao < 1 || avaliacao > 5) {
-    res.status(400).json({ mensagem: "A avaliação deve estar entre 1 e 5 estrelas" });
+    response.status(400).json({ mensagem: "A avaliação deve estar entre 1 e 5 estrelas" });
     return;
   }
 
   try {
     const usuario = await usuarioModel.findOne({ where: { id: usuarioId } });
     if (!usuario) {
-      res.status(404).json({ mensagem: "Esse usuário não existe" });
+      response.status(404).json({ mensagem: "Esse usuário não existe" });
       return;
     }
 
     const receita = await receitaModel.findOne({ where: { id: receitaId } });
     if (!receita) {
-      res.status(404).json({ mensagem: "Essa receita não existe" });
+      response.status(404).json({ mensagem: "Essa receita não existe" });
       return;
     }
 
-    const novoComentario = await comentarioModel.create({
+    const comentario = {
       usuarioId,
       receitaId,
       texto,
       avaliacao,
       aprovado: true
-    });
+    }
 
-    res.status(201).json({ mensagem: "Comentário adicionado com sucesso", data: novoComentario });
+    const novoComentario = await comentarioModel.create(comentario);
+
+    response.status(201).json({ mensagem: "Comentário adicionado com sucesso", novoComentario });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensagem: "Erro interno ao adicionar comentário" });
+    response.status(500).json({ mensagem: "Erro interno ao adicionar comentário" });
   }
 };
 
 
-export const listarComentariosReceita = async (req, res) => {
-  const { id } = req.params; 
+export const listarComentariosReceita = async (request, response) => {
+  const { id } = request.params;
+
+  if(!id){
+    response.status(400).json({mensagem: "Parâmetro ID não pode ser nulo"})
+  }
+
   try {
     const comentarios = await comentarioModel.findAll({
       where: { receitaId: id },
       include: [{ model: usuarioModel, attributes: ["id", "nome"] }]
-    });
 
-    res.status(200).json(comentarios);
+    });
+    if(!comentarios){
+      response.status(404).json({mensagem: "Essa receita não existe"})
+      return
+    }
+
+    response.status(200).json(comentarios);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensagem: "Erro interno ao listar comentários" });
+    response.status(500).json({ mensagem: "Erro interno ao listar comentários" });
   }
 };
 
 
-export const editarComentario = async (req, res) => {
-  const { id } = req.params;
-  const { texto, avaliacao } = req.body;
-  const usuarioId = req.user.id;
+export const editarComentario = async (request, response) => {
+  const { id } = request.params;
+  const { texto, avaliacao } = request.body;
+  const { usuarioId } = request.body;
+
+  if(!usuarioId){
+    response.status(400).json({mensagem: "Campo usuarioId não pode ser nulo"})
+    return
+  }
 
   try {
     const comentario = await comentarioModel.findOne({ where: { id, usuarioId } });
     if (!comentario) {
-      res.status(404).json({ mensagem: "Comentário não encontrado ou não pertence ao usuário" });
+      response.status(404).json({ mensagem: "Comentário não encontrado ou não pertence ao usuário" });
       return;
     }
 
-    if (avaliacao && (avaliacao < 1 || avaliacao > 5)) {
-      res.status(400).json({ mensagem: "A avaliação deve estar entre 1 e 5 estrelas" });
-      return;
+    if(texto !== undefined){
+      comentario.texto = texto
     }
 
-    comentario.texto = comentario.texto;
-    comentario.avaliacao = comentario.avaliacao;
+    if(avaliacao !== undefined && (avaliacao < 1 || avaliacao > 5)) {
+      comentario.avaliacao = avaliacao;
+    } else {
+      response.status(400).json({mensagem: "Avaliação deve estar entre 1 e 5 estrelas"})
+      return
+    }
+    
     await comentario.save();
 
-    res.status(200).json({ mensagem: "Comentário atualizado com sucesso", data: comentario });
+    response.status(200).json({ mensagem: "Comentário atualizado com sucesso", data: comentario });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensagem: "Erro interno ao atualizar comentário" });
+    response.status(500).json({ mensagem: "Erro interno ao atualizar comentário" });
   }
 };
 
 
-export const removerComentario = async (req, res) => {
-  const { id } = req.params;
-  const usuarioId = req.user.id;
+export const removerComentario = async (request, response) => {
+  const { id } = request.params;
+  const { usuarioId } = request.body;
+
+  if(!id){
+    response.status(400).json({mensagem: "Parâmetro ID não pode ser nulo"})
+    return
+  }
+
+  if(!usuarioId){
+    response.status(400).json({mensagem: "Campo usuarioId não pode ser nulo"})
+    return
+  }
 
   try {
-    const comentario = await comentarioModel.findOne({ where: { id, usuarioId } });
+    const comentario = await comentarioModel.findOne({ where: { id } });
     if (!comentario) {
-      res.status(404).json({ mensagem: "Comentário não encontrado ou não pertence ao usuário" });
-      return;
+      response.status(404).json({ mensagem: "Comentário não existe" });
+      return
+    }
+
+    if(comentario.usuarioId !== usuarioId){
+      response.status(403).json({mensagem: "Você não possui permissão para deletar esse comentário"})
+      return
     }
 
     await comentario.destroy();
-    res.status(204).send();
+    response.status(204).send();
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensagem: "Erro interno ao remover comentário" });
+    response.status(500).json({ mensagem: "Erro interno ao remover comentário" });
   }
 };
 
 
-export const listarComentariosUsuario = async (req, res) => {
-  const usuarioId = req.user.id;
+export const listarComentariosUsuario = async (request, response) => {
+  const { usuarioId } = request.body;
+
+  if(!usuarioId){
+    response.status(400).json({mensagem: "Campo usuarioId não pode ser nulo"})
+    return
+  }
 
   try {
     const comentarios = await comentarioModel.findAll({
@@ -133,9 +174,14 @@ export const listarComentariosUsuario = async (req, res) => {
       include: [{ model: receitaModel, attributes: ["id", "titulo"] }]
     });
 
-    res.status(200).json(comentarios);
+    if(!comentarios){
+      response.status(404).json({mensagem: "Esse usuário não possui comentários"})
+      return
+    }
+
+    response.status(200).json(comentarios);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ mensagem: "Erro interno ao listar comentários do usuário" });
+    response.status(500).json({ mensagem: "Erro interno ao listar comentários do usuário" });
   }
 };
